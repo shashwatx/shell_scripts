@@ -1,34 +1,38 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
+
 helpMessage="
 ============================================================================================
-busconIndex v0.9
+busconIndex v1.0
 ============================================================================================
 Given the path to a directory containing binaries to index, this script attempts to
 execute all required steps and send the generated info to a solr collection.
-Date:                Oct, 21st, 2017
+Date:           Oct, 21st, 2017
 Author:         Shashwat Mishra
-Affiliation:        GrupoICA, AEAT Spain
+Affiliation:    GrupoICA, AEAT Spain
 ============================================================================================
 "
 usageMessage="
 ======================================================================================================
 Usage: ./busconIndex [OPTIONS] <input>
 where:
-<input> Absolute path to the directory containing the binaries to index.
-[OPTIONS]
-[MANDATORY]
--c Full path to configuration file.
--e Environment (one of DES, PRE, or PRO).
--i Execution string (Ex. execution_00001).
--m Full path to metadata file.
--n Number of retries.
--t1 Timeout for MR1 (in seconds).
--t2 Timeout for MR2 (in seconds).
-[OPTIONAL]
--q Run in silent mode.
--o Order binaries within a tar in ascending order of size.
--p Purge data uploaded to HDFS after execution terminates.
--df Disable fail in PolicyManager.
+        <input> Absolute path to the directory containing the binaries to index.
+
+        [OPTIONS]
+
+            [MANDATORY]
+                -c Full path to configuration file.
+                -e Environment (one of DES, PRE, or PRO).
+                -i Execution string (Ex. execution_00001).
+                -m Full path to metadata file.
+                -n Number of retries.
+                -t1 Timeout for MR1 (in seconds).
+                -t2 Timeout for MR2 (in seconds).
+
+            [OPTIONAL]
+                -q Run in silent mode.
+                -o Order binaries within a tar in ascending order of size.
+                -p Purge data uploaded to HDFS after execution terminates.
+                -df Disable fail in PolicyManager.
 ======================================================================================================
 "
 exec 3>&1
@@ -47,15 +51,15 @@ initColors(){
     blue=$'\e[1;34m'
     mag=$'\e[1;35m'
     cyn=$'\e[1;36m'
-end=$'\e[0m'
+    end=$'\e[0m'
 
-# Dim colors
-grnDim=$'\e[5;32m'
-yelDim=$'\e[5;33m'
-bluDim=$'\e[5;34m'
-redDim=$'\e[5;31m'
-# Underlined colors
-grnUl=$'\e[5;32m'
+    # Dim colors
+    grnDim=$'\e[5;32m'
+    yelDim=$'\e[5;33m'
+    bluDim=$'\e[5;34m'
+    redDim=$'\e[5;31m'
+    # Underlined colors
+    grnUl=$'\e[5;32m'
 }
 getProperty(){
     val0=$(cat ${configFile} | grep -v "^#" | grep "${1}=" | cut -d'=' -f2- | cut -d'"' -f2)

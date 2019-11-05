@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 
 helpMessage="
 ===================================================================================
@@ -6,25 +6,26 @@ docs2cluster v1.0
 ===================================================================================
 
 This script implements a command line tool to transfer files from local file
-system to HDFS as tar files.
-This tool was written to circumvent the small files problem.
+system to HDFS as tar files. This tool was written to circumvent the small files problem.
 For speed considerations, tarring process uses multiple threads.
 
-Date:                29/May/2019
+Date:           29/May/2019
 Author:         Shashwat Mishra
-Affiliation:         Spain
+Affiliation:    Spain
 ===================================================================================
 "
 usageMessage="
 ==================================================================================================
-Usage: ./docs2cluster [OPTIONS] <input> <output>
+Usage:
+        ./docs2cluster [OPTIONS] <input> <output>
+
 where:
-<input> Absolute path in local file system containing files to upload.
-<output> Desired directory name in HDFS
+        <input> Absolute path in local file system containing files to upload.
+        <output> Desired directory name in HDFS
         OPTIONS:
--s Shuffle before upload. (Default: No shuffle)
--r Order files in increasing order of size within a tar. (Default: Random order)
--n <num> Number of tars to create. Should be a multiple of 4. (Default: 500)
+            -s Shuffle before upload. (Default: No shuffle)
+            -r Order files in increasing order of size within a tar. (Default: Random order)
+            -n <num> Number of tars to create. Should be a multiple of 4. (Default: 500)
 ===================================================================================================
 "
 set -e
