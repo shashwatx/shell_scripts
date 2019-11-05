@@ -1,0 +1,410 @@
+﻿#!/usr/bin/env bash
+
+helpMessage="
+===================================================================================
+docs2cluster v1.0
+===================================================================================
+
+This script implements a command line tool to transfer files from local file
+system to HDFS as tar files.
+This tool was written to circumvent the small files problem.
+For speed considerations, tarring process uses multiple threads.
+
+Date:                29/May/2019
+Author:         Shashwat Mishra
+Affiliation:         Spain
+===================================================================================
+"
+usageMessage="
+==================================================================================================
+Usage: ./docs2cluster [OPTIONS] <input> <output>
+where:
+<input> Absolute path in local file system containing files to upload.
+<output> Desired directory name in HDFS
+        OPTIONS:
+-s Shuffle before upload. (Default: No shuffle)
+-r Order files in increasing order of size within a tar. (Default: Random order)
+-n <num> Number of tars to create. Should be a multiple of 4. (Default: 500)
+===================================================================================================
+"
+set -e
+
+log(){
+    #echo "[$(date)]: $*"
+    printf ""
+}
+logInfo(){
+    echo "[$(date)]: ${blue} $* ${end}"
+}
+logWarn(){
+    echo "[$(date)]: ${red} $* ${end}"
+}
+logImp(){
+    echo "[$(date)]: ${mag} $* ${end}"
+}
+checkParams() {
+    if [ "$#" -lt 1 ]; then
+        echo -e "${usageMessage}"
+        exit 1
+    fi
+}
+errMsg() {
+    echo -e "${usageMessage}"
+    echo -e "${red}${1}${end}"
+    echo
+    exit 1
+}
+helpMsg() {
+    echo -e "${helpMessage}"
+    echo -e "${usageMessage}"
+    exit 0
+}
+
+init(){
+    STARTTIME=$(date +%s)
+    numMappers=500
+    setShuffle=0
+    setOrder=0
+    # If you need to use the actual hdfs block size, uncomment the line below
+    # packetSize=$(hdfs getconf -confKey dfs.blocksize)
+    red=$'\e[1;31m'
+    grn=$'\e[1;32m'
+    yel=$'\e[1;33m'
+    blue=$'\e[1;34m'
+    mag=$'\e[1;35m'
+    cyn=$'\e[1;36m'
+    end=$'\e[0m'
+
+    set +e
+    while [ $# -gt 0 ]
+    do         # get parameters
+         case "${1}" in
+                 -h) # help
+                         helpMsg
+                         ;;
+                 -s) # shuffle
+                         setShuffle=1
+                         ;;
+                 -r) # order
+                         setOrder=1
+                         ;;
+                 -n) # number
+                         shift # to get the next parameter
+                         numMappers=$(expr "$1" : '\([0-9]*\)')
+                         [ "${numMappers}" = "" ] && errMsg "--- NUMBER OF MAPPERS ($1) MUST BE A POSITIVE INTEGER ---"
+                         if [[ $((numMappers%4)) -ne 0 ]]; then
+                                errMsg "--- NUMBER OF MAPPERS ($1) MUST BE A MULTIPLE OF FOUR ---"
+                         fi
+                         ;;
+                 -*) # any other - argument
+                         errMsg "--- SUPPLIED OPTION ($1) IS NOT RECOGNIZED ---"
+                         ;;
+                 -) # STDIN and end of arguments
+                         break
+                         ;;
+                 *) # end of arguments
+                         break
+                         ;;
+         esac
+         shift # next option
+    done
+    set -e
+    if [ "$#" -lt 2 ]; then
+        echo -e "${usageMessage}"
+        echo -e "\n${red}Did you forget to specify input/output?${end}\n"
+        echo
+        exit 1
+    fi
+    inputPath=${1}
+    outputPath=${2}
+}
+
+pause() {
+    echo
+    read -u 0 -p "Press any key to continue..."
+}
+
+getNumArgs() {
+    numArgs=$(echo $1 | tr ' ' '\n' | wc -l)
+    numArgs=$((numArgs-1))
+    numArgs
+}
+
+askYesNo() {
+    echo -n "$1 (y/n) "
+    while read -r -n 1 -s answer; do
+        if [[ ${answer} = [YyNn] ]]; then
+            [[ ${answer} = [Yy] ]] && response=1
+            [[ ${answer} = [Nn] ]] && response=0
+            break
+        fi
+    done
+    echo
+    echo
+}
+
+end(){
+    ENDTIME=$(date +%s)
+    SPENTTIME=$(((ENDTIME-STARTTIME)));
+}
+
+sffOpt(){
+    log "mainTarString (original): ${mainTarString}"
+    b1L=$(printf '%s' "${mainTarString}" | head -1 | cut -d' ' -f2-)
+    b1LN=$(printf '%s' "${mainTarString}" | head -1 | cut -d' ' -f1)
+    b2L=$(printf '%s' "${mainTarString}" | head -2 | tail -1 | cut -d' ' -f2-)
+    b2LN=$(printf '%s' "${mainTarString}" | head -2 | tail -1 | cut -d' ' -f1)
+    b3L=$(printf '%s' "${mainTarString}" | head -3 | tail -1 | cut -d' ' -f2-)
+    b3LN=$(printf '%s' "${mainTarString}" | head -3 | tail -1 | cut -d' ' -f1)
+    b4L=$(printf '%s' "${mainTarString}" | head -4 | tail -1 | cut -d' ' -f2-)
+    b4LN=$(printf '%s' "${mainTarString}" | head -4 | tail -1 | cut -d' ' -f1)
+    sorted_b1L=$(ls -r -Sl ${b1L} | rev | cut -d' ' -f1 | rev | tr '\n' ' ')
+    sorted_b2L=$(ls -r -Sl ${b2L} | rev | cut -d' ' -f1 | rev | tr '\n' ' ')
+    sorted_b3L=$(ls -r -Sl ${b3L} | rev | cut -d' ' -f1 | rev | tr '\n' ' ')
+    sorted_b4L=$(ls -r -Sl ${b4L} | rev | cut -d' ' -f1 | rev | tr '\n' ' ')
+    mainTarString="${b1LN} ${sorted_b1L}
+    ${b2LN} ${sorted_b2L}
+    ${b3LN} ${sorted_b3L}
+    ${b4LN} ${sorted_b4L}
+    "
+    log "mainTarString (reordered): ${mainTarString}"
+}
+info(){
+    formatConfig1="%-20s\t%-35s\n"
+    formatConfig2="%-20s\t%-35d\n"
+    sep="====================================================================================================================================="
+    sep2="-------------------------------------------------------------------------------------------------------------------------------------"
+    echo
+    echo ${sep}
+    printf "${formatConfig1}" "Input" ${inputPath}
+    echo ${sep2}
+    printf "${formatConfig1}" "Output" ${outputPath}
+    echo ${sep2}
+    printf "${formatConfig2}" "Num Tars" ${numMappers}
+    echo ${sep2}
+    printf "${formatConfig1}" "Shuffle" ${setShuffle}
+    echo ${sep}
+}
+
+## Parameter check
+checkParams $*
+
+## init
+init $*
+
+## info
+info
+
+## Pause
+#pause
+
+#clear
+logInfo "Checking if directory exists in HDFS: ${outputPath}"
+set +e
+hadoop fs -test -d ${outputPath}
+checkIfDirExistsInHDFS=$?
+set -e
+if [[ ${checkIfDirExistsInHDFS} -eq 0 ]]; then
+        logWarn "HDFS directory already exists."
+        logWarn "Deleting HDFS directory."
+        hadoop fs -rm -r ${outputPath} > /dev/null 2>&1
+        logInfo "Creating HDFS directory."
+        hadoop fs -mkdir -p ${outputPath}
+else
+        logInfo "Creating HDFS directory."
+        hadoop fs -mkdir -p ${outputPath}
+fi
+
+logInfo "Navigating to inputPath: ${inputPath}"
+cd ${inputPath}
+logInfo "Deleting existing tar files."
+rm -rf *.tar
+
+logInfo "Reading files into array."
+files=()
+while IFS= read -r -d $'\0'; do files+=("$REPLY"); done < <(find . -maxdepth 1 -type f -print0)
+
+numTotalFiles=${#files[@]}
+logInfo "#files found: ${numTotalFiles}"
+
+#pause
+filesPerMapper=$((numTotalFiles/numMappers))
+evenSplitCoverage=$(bc -l <<< ${filesPerMapper}*${numMappers})
+remFileCount=$((${numTotalFiles}-${evenSplitCoverage}))
+logInfo "#mappers: ${numMappers}"
+logInfo "#files-per-mapper: ${filesPerMapper}"
+logInfo "rem spill: ${remFileCount}"
+
+numTarFiles=0
+currentNumFiles=0
+lastNumFiles=0
+currentTarString="tarFile${numTarFiles}.tar"
+mainTarString=""
+filesProcessed=0
+currentStartIndex=0
+bufferSize=0
+
+if [[ ${setShuffle} -eq 1 ]]; then
+        logInfo "Shuffling Files...."
+        #shuffle
+        printf "%s\n" "${files[@]}" > tt
+        files=()
+        cat tt | shuf > tt.random
+        set +e
+IFS=$'\n' read -d '' -r -a files < tt.random
+        set -e
+        rm -rf tt tt.random
+        logInfo "Shuffle complete."
+fi
+
+numTotalFiles=${#files[@]}
+if [[ ${setShuffle} -eq 1 ]]; then
+        logInfo "#files after shuffle: ${numTotalFiles}"
+fi
+
+logInfo "Tarring..."
+if [[ ${numTotalFiles} -eq 1 ]]; then
+    logInfo "Found single file."
+    tar -cf tarFile0.tar ${files[0]}
+    numTarFiles=1
+elif [[ ${numTotalFiles} -eq 2 ]]; then
+    logInfo "Found two files."
+    tar -cf tarFile0.tar ${files[0]}
+    tar -cf tarFile1.tar ${files[1]}
+    numTarFiles=2
+elif [[ ${numTotalFiles} -eq 3 ]]; then
+    logInfo "Found three files."
+    tar -cf tarFile0.tar ${files[0]}
+    tar -cf tarFile1.tar ${files[1]}
+    tar -cf tarFile2.tar ${files[2]}
+    numTarFiles=3
+else
+    #printf "\n"
+    for i in "${files[@]}"
+    do
+        numFileLimit=${filesPerMapper}
+
+        if [[ ${numTarFiles} -lt ${remFileCount} ]]; then
+            numFileLimit=$((numFileLimit+1))
+        fi
+
+        currentNumFiles=$((currentNumFiles+1))
+
+        if [[ ${currentNumFiles} -eq ${numFileLimit} ]]; then
+
+            log "chunk: ${green}tarFile${numTarFiles}.tar${end}"
+            log "chunk-length: ${currentNumFiles} files"
+            log "chunk-startIndex: ${currentStartIndex}"
+            mainTarString="${currentTarString} ${files[@]:currentStartIndex:currentNumFiles}
+            ${mainTarString}"
+            filesProcessed=$((${filesProcessed}+${currentNumFiles}))
+            bufferSize=$((bufferSize+1))
+            if [[ ${bufferSize} -eq 4 ]]; then
+                # Recreate mainTarString to be in sorted order of size.
+                if [[ ${setOrder} -eq 1 ]]; then
+                    sffOpt
+                fi
+                # Break mainTarString into it's 4 parts
+                firstLine=$(printf '%s' "${mainTarString}" | head -1)
+                firstLineArg=$(awk -F' ' '{print NF-1}' <<< ${firstLine})
+                secondLine=$(printf '%s' "${mainTarString}" | head -2 | tail -1)
+                secondLineArg=$(awk -F' ' '{print NF-1}' <<< ${secondLine})
+                thirdLine=$(printf '%s' "${mainTarString}" | head -3 | tail -1)
+                thirdLineArg=$(awk -F' ' '{print NF-1}' <<< ${thirdLine})
+                fourthLine=$(printf '%s' "${mainTarString}" | tail -1)
+                fourthLineArg=$(awk -F' ' '{print NF-1}' <<< ${fourthLine})
+                # If all four bags have the same number of files, use parallel tarring
+                if [[ ${firstLineArg} -eq ${fourthLineArg} ]]; then
+                    log "Generating 4 tars in parallel..."
+                    printf '%s' "${mainTarString}" | xargs -s 131072 -n $((currentNumFiles+1)) -P 4 tar cf
+                else
+                    # first part will always be small
+                    firstLineArg=$((currentNumFiles))
+                    # fourth part will always be large
+                    fourthLineArg=$((currentNumFiles+1))
+                    # second and third maybe both small or large
+                    tempVal=$((${numTarFiles}-${remFileCount}))
+                    # case 1 - second large, third large
+                    if [[ ${tempVal} -eq 0 ]]; then
+                        secondLineArg=$((currentNumFiles+1))
+                        thirdLineArg=$((currentNumFiles+1))
+                    fi
+                    # case 2 - second small, third large
+                    if [[ ${tempVal} -eq 1 ]]; then
+                        secondLineArg=$((currentNumFiles))
+                        thirdLineArg=$((currentNumFiles+1))
+                    fi
+                    # case 3 - second small, third small
+                    if [[ ${tempVal} -eq 2 ]]; then
+                        secondLineArg=$((currentNumFiles))
+                        thirdLineArg=$((currentNumFiles))
+                    fi
+                    printf '%s' "${firstLine}" | xargs -s 131072 -n $((firstLineArg+1)) -P 1 tar cf
+                    log "Generated 1 of 4 tars in sequence..."
+                    printf '%s' "${secondLine}" | xargs -s 131072 -n $((secondLineArg+1)) -P 1 tar cf
+                    log "Generated 2 of 4 tars in sequence..."
+                    printf '%s' "${thirdLine}" | xargs -s 131072 -n $((thirdLineArg+1)) -P 1 tar cf
+                    log "Generated 3 of 4 tars in sequence..."
+                    printf '%s' "${fourthLine}" | xargs -s 131072 -n $((fourthLineArg+1)) -P 1 tar cf
+                    log "Generated 4 of 4 tars in sequence..."
+                fi
+                bufferSize=0
+                mainTarString=""
+                log "Progress: ${filesProcessed}/${numTotalFiles}"
+            fi
+            currentStartIndex=$((${currentStartIndex}+${currentNumFiles}))
+            lastNumFiles=${currentNumFiles}
+            currentNumFiles=0
+            numTarFiles=$((numTarFiles+1))
+            currentTarString="tarFile${numTarFiles}.tar"
+
+            # progress bar
+            percentDone=$(bc -l <<< ${filesProcessed}/${numTotalFiles}*100)
+            percentDone_Int=$(printf "%.0f" ${percentDone})
+            progressString=$(printf '#%.0s' $(seq 1 ${percentDone_Int}))
+            printf "%-100s ${yel}(%s%%)${end}\r" ${progressString} ${percentDone_Int}
+
+        fi
+    done
+fi
+printf "\n"
+if [[ ${bufferSize} -ne 0 ]]; then
+    if [[ $((numTarFiles%4)) -gt 0 ]]; then
+        logInfo "Generating lonely tar #1..."
+        firstLine=$(printf '%s' "${mainTarString}" | head -1)
+        firstLineArg=$(awk -F' ' '{print NF-1}' <<< ${firstLine})
+        printf '%s' "${firstLine}" | xargs -s 131072 -n $((firstLineArg+1)) -P 1 tar cf
+    fi
+    if [[ $((numTarFiles%4)) -gt 1 ]]; then
+        logInfo "Generating lonely tar #2..."
+        secondLine=$(printf '%s' "${mainTarString}" | head -2 | tail -1)
+        secondLineArg=$(awk -F' ' '{print NF-1}' <<< ${secondLine})
+        printf '%s' "${secondLine}" | xargs -s 131072 -n $((secondLineArg+1)) -P 1 tar cf
+    fi
+    if [[ $((numTarFiles%4)) -gt 2 ]]; then
+        logInfo "Generating lonely tar #3..."
+        thirdLine=$(printf '%s' "${mainTarString}" | head -3 | tail -1)
+        thirdLineArg=$(awk -F' ' '{print NF-1}' <<< ${thirdLine})
+        printf '%s' "${thirdLine}" | xargs -s 131072 -n $((thirdLineArg+1)) -P 1 tar cf
+    fi
+fi
+tarFilesGenerated=$((numTarFiles))
+#printf "\n"
+if [[ ${tarFilesGenerated} -eq 0 ]]; then
+    logWarn "No tar files were generated."
+else
+    logInfo "Finished generating all tars."
+    logInfo "Generated ${tarFilesGenerated} tars."
+    logInfo "Sending tars to cluster..."
+
+    #hadoop fs -copyFromLocal *.tar ${outputPath}/
+    #hadoop fs -D dfs.replication=1 -copyFromLocal *.tar ${outputPath}/
+    #hadoop fs -D dfs.block.size=268465664 -copyFromLocal *.tar ${outputPath}/
+    hadoop fs -D dfs.replication=4 -D dfs.block.size=268465664 -copyFromLocal *.tar ${outputPath}/
+    logInfo "Cleaning up..."
+    rm -rf *.tar
+fi
+logInfo "Finished."
+end
+logWarn "Execution time: ${SPENTTIME} seconds."
+exit
