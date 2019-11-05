@@ -13,26 +13,30 @@ Affiliation:    GrupoICA, AEAT Spain
 "
 usageMessage="
 ======================================================================================================
-Usage: ./busconIndex [OPTIONS] <input>
+Usage:
+
+    ./busconIndex [OPTIONS] <input>
+
 where:
-        <input> Absolute path to the directory containing the binaries to index.
 
-        [OPTIONS]
+    <input> Absolute path to the directory containing the binaries to index.
 
-            [MANDATORY]
-                -c Full path to configuration file.
-                -e Environment (one of DES, PRE, or PRO).
-                -i Execution string (Ex. execution_00001).
-                -m Full path to metadata file.
-                -n Number of retries.
-                -t1 Timeout for MR1 (in seconds).
-                -t2 Timeout for MR2 (in seconds).
+    [OPTIONS]
 
-            [OPTIONAL]
-                -q Run in silent mode.
-                -o Order binaries within a tar in ascending order of size.
-                -p Purge data uploaded to HDFS after execution terminates.
-                -df Disable fail in PolicyManager.
+        [MANDATORY]
+            -c Full path to configuration file.
+            -e Environment (one of DES, PRE, or PRO).
+            -i Execution string (Ex. execution_00001).
+            -m Full path to metadata file.
+            -n Number of retries.
+            -t1 Timeout for MR1 (in seconds).
+            -t2 Timeout for MR2 (in seconds).
+
+        [OPTIONAL]
+            -q Run in silent mode.
+            -o Order binaries within a tar in ascending order of size.
+            -p Purge data uploaded to HDFS after execution terminates.
+            -df Disable fail in PolicyManager.
 ======================================================================================================
 "
 exec 3>&1
@@ -371,6 +375,7 @@ init(){
     #####################################################################################################################################
     #####################################################################################################################################
     #####################################################################################################################################
+
     #######################
     ### EXECUTION-INDEX ###
     #######################

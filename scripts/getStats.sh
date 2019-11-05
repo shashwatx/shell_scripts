@@ -8,15 +8,13 @@ getStats v0.1
 
 ==================================================================================
 
-Description: A shell script utility for generating various stats from
+Description: A shell script utility for generating various stats from exeuction log of the indexing job.
 
-exeuction log of the indexing job.
+    Date: June, 5th, 2017.
 
-Date: June, 5th, 2017.
+    Author: Shashwat Mishra
 
-Author: Shashwat Mishra
-
-Affiliation: GrupoICA/AEAT, Spain
+    Affiliation: GrupoICA/AEAT, Spain
 
 ==================================================================================
 
@@ -26,17 +24,17 @@ usageMessage="
 
 ==================================================================================
 
-Usage: $0 [OPTIONS] <input>
+Usage:
+
+    $0 [OPTIONS] <input>
 
 where:
 
-<input> Path to execution log
+    <input> Path to execution log
 
-OPTIONS:
+    OPTIONS:
 
--k Show top k most expensive files (timewise).
-
-(Default: 10)
+        -k Show top k most expensive files (Default: 10).
 
 ==================================================================================
 
@@ -219,8 +217,6 @@ pause() {
     read -u 0 -p "Press any key to continue..."
 
 }
-
-　
 
 askYesNo() {
 
