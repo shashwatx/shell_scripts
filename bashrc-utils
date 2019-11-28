@@ -1,0 +1,12 @@
+
+sizeChildren(){
+        curr=${PWD}
+        cd $1
+        prefix=/tmp/sizeChildren.$$
+        mkdir -p ${prefix}
+        find ./ -maxdepth 1 | tail -n +2 | xargs -I {} sh -c 'du -hs "{}"' 2>/dev/null > ${prefix}/out.human
+        find ./ -maxdepth 1 | tail -n +2 | xargs -I {} sh -c 'du -s "{}"' 2>/dev/null > ${prefix}/out.comp
+        join -j 2 -o 1.1 1.2 2.1 ${prefix}/out.human ${prefix}/out.comp | sort -k3,3 -nr | rev | cut -d' ' -f2- | rev  > ${prefix}/out.total
+        awk '{size=$1;$1="";printf "%-5s\t%-20s\n",size,$0}' ${prefix}/out.total
+        cd ${curr}
+}
