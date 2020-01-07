@@ -1,4 +1,5 @@
 
+# show size of level 1 memebrs in the current folder.
 sizeChildren(){
         curr=${PWD}
         target=$*
@@ -12,3 +13,7 @@ sizeChildren(){
         cd ${curr}
 }
 
+# generate some (10) random files.
+randomFiles(){
+     seq -w 1 10 | xargs -n1 -I% sh -c 'dd if=/dev/urandom of=file.% bs=$(shuf -i1-10 -n1) count=1024'
+}
