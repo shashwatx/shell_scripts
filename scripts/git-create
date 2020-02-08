@@ -1,0 +1,231 @@
+#!/usr/bin/env bash
+
+helpMessage="
+==================================================================
+git-create v0.1
+==================================================================
+This script facilitates CLI based creation of git repositories on 
+Github. 
+
+The created repository is named after the name of the current
+directory. For ex. if the script is called from the path
+/home/alpha/repos/my_repo, the created repository is \"my_repo\".
+
+Date:           Feb, 3rd, 2019
+Author:         Shashwat Mishra
+Affiliation:    Babel, Spain
+==================================================================
+"
+usageMessage="
+==================================================================
+Usage:
+
+    $0 [OPTIONS]
+
+where:
+
+    [OPTIONS]
+
+        [MANDATORY]
+            -u Github name.
+
+        [OPTIONAL]
+            -i Init repository, add remote after creation.
+==================================================================
+"
+
+githubURL="https://api.github.com/user/repos"
+username=$(git config github.user)
+
+# setup your own access token below.
+accessToken="dummy_val"
+
+exec 3>&1
+set -o pipefail
+set -e
+getScreenWideSeparator(){
+    separatorStages="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+}
+initColors(){
+    # Bold colors
+    red=$'\e[1;31m'
+    grn=$'\e[1;32m'
+    yel=$'\e[1;33m'
+    blue=$'\e[1;34m'
+    mag=$'\e[1;35m'
+    cyn=$'\e[1;36m'
+    end=$'\e[0m'
+
+    # Dim colors
+    grnDim=$'\e[5;32m'
+    yelDim=$'\e[5;33m'
+    bluDim=$'\e[5;34m'
+    redDim=$'\e[5;31m'
+    # Underlined colors
+    grnUl=$'\e[5;32m'
+}
+logDebug(){
+    echo "${yel}[$(date)]:${end} $*"
+}
+runStringAsStep(){
+    logDebug "Executing: ${grn}$*${end}"
+    #eval $* > /dev/null 2>&1
+}
+logInfo(){
+    echo "${yel}[$(date)]:${end} ${blu}$* ${end}"
+}
+logError(){
+    echo "${yel}[$(date)]:${end} ${red}$* ${end}"
+}
+logImp(){
+    echo "${yel}[$(date)]:${end} ${red}$* ${end}"
+}
+
+separateStages(){
+    echo "${mag}$*${end}"
+    echo "${mag}$*${end}"
+}
+
+errMsg() {
+    echo -e "${usageMessage}"
+    echo "${red}${errorMsg}: ${1}${end}"
+    echo
+    exit 1
+}
+helpMsg() {
+    echo -e "${helpMessage}"
+    echo -e "${usageMessage}"
+    echo
+    exit 0
+}
+
+
+init(){
+    STARTTIME=$(date +%s)
+
+    repositoryName=${PWD##*/}
+
+    usernameSet=0
+    flagInit=0
+
+    errorMsg="ERROR"
+
+    set +e
+    while [ $# -gt 0 ]
+    do         # get parameters
+        case "${1}" in
+            -h) # help
+                helpMsg
+                ;;
+            -u) # get LDAP username
+                shift # to get the next parameter
+                username="${1}"
+                usernameSet=1
+                ;;
+            -i) # get init flag.
+                flagInit=1
+                ;;
+            -*) # any other - argument
+                errMsg "Option (${1}) is not recognized."
+                ;;
+            -) # STDIN and end of arguments
+                break
+                ;;
+            *) # end of arguments
+                break
+                ;;
+        esac
+        shift # next option
+    done
+    set -e
+
+    logInfo "Init call finished."
+}
+pause() {
+    echo
+    read -u 0 -p "Press Enter key to continue..."
+}
+askYesNo() {
+    echo -n "${mag}$1${end} (y/n) "
+    while read -r -n 1 -s answer; do
+        if [[ ${answer} = [YyNn] ]]; then
+            [[ ${answer} = [Yy] ]] && response=1
+            [[ ${answer} = [Nn] ]] && response=0
+            break
+        fi
+    done
+    echo
+    echo
+}
+end(){
+    ENDTIME=$(date +%s)
+    SPENTTIME=$(((ENDTIME-STARTTIME)));
+}
+
+cleanUP(){
+
+    exec 1>&3
+
+    separateStages "${separatorStages}"
+
+    logError "Critical Failure. Retrace steps to debug."
+
+    set +e
+
+    end
+    logError "Execution time: ${SPENTTIME} seconds."
+    logError "FAILURE."
+
+    exit 1
+}
+
+info(){
+    formatConfig1="%-35s\t%-35s\n"
+    formatConfig2="%-35s\t%-35d\n"
+    sep="==========================================================================="
+    sep2="---------------------------------------------------------------------------"
+    echo
+    echo ${sep}
+    printf "${formatConfig1}" "Github URL" ${githubURL}
+    echo ${sep2}
+    printf "${formatConfig1}" "Github Username" ${username}
+    echo ${sep2}
+    printf "${formatConfig1}" "Repository Name" ${repositoryName}
+    printf "${formatConfig1}" "Init" ${flagInit}
+    echo ${sep}
+    echo
+}
+
+getScreenWideSeparator
+initColors
+init $*
+info
+
+response=1
+askYesNo "Do you want to create the repository with the above details?"
+
+
+if [[ ${response} -eq 1 ]]; then
+
+    trap 'cleanUP' ERR TERM
+    set -eE
+    logInfo "Trap set."
+    logInfo "Commencing execution."
+
+    runStringAsStep "curl -u ${username}:${accessToken} ${githubURL} -d \"{\\\"name\\\": \\\"${repositoryName}\\\", \\\"private\\\": false, \\\"has_issues\\\": true, \\\"has_downloads\\\": true, \\\"has_wiki\\\": false}\""
+
+    if [[ ${flagInit} -eq 1 ]]; then
+        logInfo "Initing the repository."
+        runStringAsStep "git init"
+        runStringAsStep "git remote add origin git@github.com:${username}/${repositoryName}.git"
+        logInfo "Added remote \"origin\"."
+        logInfo "Happy Coding!."
+    fi
+
+fi
+
+end
+logImp "Execution time: ${SPENTTIME} seconds."
+logImp "SUCCESS."
+
+exit 0
