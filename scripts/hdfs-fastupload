@@ -2,7 +2,7 @@
 
 helpMessage="
 ===================================================================================
-docs2cluster v1.0
+hdfs-fastupload v1.0
 ===================================================================================
 
 This script implements a command line tool to transfer files from local file
