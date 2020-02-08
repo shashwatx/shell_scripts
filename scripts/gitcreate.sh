@@ -52,7 +52,7 @@ fi
 
 # Get repository name
 printf "\nFetching current directory name...${mag}%s${end}\n" $FETCHED_REPO_NAME
-read -p "${blue}Do you prefer a different repository name ? (Press enter to skip): ${end}" REPO_NAME 
+read -p "${blue}Do you prefer a different repository name ? (Press enter to skip): ${end}" REPO_NAME
 printf "\n"
 
 REPO_NAME="${REPO_NAME:-$(echo $FETCHED_REPO_NAME)}"
