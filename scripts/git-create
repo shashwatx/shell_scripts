@@ -69,7 +69,7 @@ logDebug(){
 }
 runStringAsStep(){
     logDebug "Executing: ${grn}$*${end}"
-    #eval $* > /dev/null 2>&1
+    eval $* > /dev/null 2>&1
 }
 logInfo(){
     echo "${yel}[$(date)]:${end} ${blu}$* ${end}"
