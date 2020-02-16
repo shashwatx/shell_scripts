@@ -1,12 +1,12 @@
 
 # show size of level 1 memebrs in the current folder.
 sizeChildren(){
-        curr=${PWD}
-        target=$*
+    curr=${PWD}
+    target=$*
         cd "${target}"
         prefix=/tmp/sizeChildren.$$
         mkdir -p ${prefix}
-        find ./ -maxdepth 1 | tail -n +2 | xargs -I {} sh -c 'du -hs "{}"' 2>/dev/null > ${prefix}/out.human
+    find ./ -maxdepth 1 | tail -n +2 | xargs -I {} sh -c 'du -hs "{}"' 2>/dev/null > ${prefix}/out.human
         find ./ -maxdepth 1 | tail -n +2 | xargs -I {} sh -c 'du -s "{}"' 2>/dev/null > ${prefix}/out.comp
         join -t $'\t' -j 2 -o 2.1 1.1 1.2 ${prefix}/out.human ${prefix}/out.comp | sort -k1,1 -nr | cut -d $'\t' -f2-   > ${prefix}/out.total
         awk '{size=$1;$1="";printf "%-5s\t%-20s\n",size,$0}' ${prefix}/out.total
@@ -15,24 +15,28 @@ sizeChildren(){
 
 # generate some (10) random files.
 randomFiles(){
-     seq -w 1 10 | xargs -n1 -I% sh -c 'dd if=/dev/urandom of=file.% bs=$(shuf -i1-10 -n1) count=1024'
+    seq -w 1 10 | xargs -n1 -I% sh -c 'dd if=/dev/urandom of=file.% bs=$(shuf -i1-10 -n1) count=1024'
 }
 
 rawurlencode() {
-   local string="${1}"
-   local strlen=${#string}
-   local encoded=""
-   local pos c o
- 
-   for (( pos=0 ; pos<strlen ; pos++ )); do
-      c=${string:$pos:1}
-      case "$c" in
-         [-_.~a-zA-Z0-9] ) o="${c}" ;;
-         * )               printf -v o '%%%02x' "'$c"
-      esac
-      encoded+="${o}"
-   done
-   echo "${encoded}"    # You can either set a return variable (FASTER) 
-   REPLY="${encoded}"   #+or echo the result (EASIER)... or both... :p
- }
+    local string="${1}"
+        local strlen=${#string}
+    local encoded=""
+        local pos c o
 
+        for (( pos=0 ; pos<strlen ; pos++ )); do
+            c=${string:$pos:1}
+    case "$c" in
+    [-_.~a-zA-Z0-9] ) o="${c}" ;;
+    * )               printf -v o '%%%02x' "'$c"
+        esac
+        encoded+="${o}"
+        done
+        echo "${encoded}"    # You can either set a return variable (FASTER) 
+        REPLY="${encoded}"   #+or echo the result (EASIER)... or both... :p
+}
+
+compress_pdf(){
+    gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/ebook -dNOPAUSE -dQUIET -dBATCH -sOutputFile=output.pdf ${1}
+
+}
