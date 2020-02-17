@@ -40,3 +40,7 @@ compress_pdf(){
     gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/ebook -dNOPAUSE -dQUIET -dBATCH -sOutputFile=output.pdf ${1}
 
 }
+
+show_file_info(){
+    find ${1} -type f -name "*" | rev | cut -d'/' -f1 |grep "\."| cut -d'.' -f1 | rev | sort | uniq -c | sort -k2,2 -nr
+}
